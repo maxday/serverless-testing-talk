@@ -1,8 +1,6 @@
-use mongodb::bson::{doc, Document};
-use mongodb::Database;
-use mongodb::{options::ClientOptions, Client};
 use async_trait::async_trait;
-use std::io::Result;
+use aws_sdk_dynamodb::{Client, Credentials, Config, Region, model::AttributeValue};
+use std::{io::Result, collections::HashMap};
 
 #[derive(Debug)]
 pub struct Pizza {
@@ -14,20 +12,17 @@ impl Pizza {
     pub fn new(name: String, price: i32) -> Self {
         Pizza { name, price }
     }
-    fn to_document(&self) -> Document {
-        doc! { "name": &self.name, "price": self.price }
-    }
-    fn from_document(document: Option<Document>) -> Option<Self> {
-        match document {
-            None => None,
-            Some(document) => {
-                let name = document.get_str("name".to_string()).expect("could not find the name");
-                let price = document.get_i32("price".to_string()).expect("could not find the price");
-                Some(Pizza {
-                    name: name.to_string(),
-                    price,
-                })
-            }
+    fn from(value: &HashMap<String, AttributeValue>) -> Pizza {
+        Pizza {
+            name: 
+            value.get("name")
+            .expect("could not find name").as_s()
+            .expect("wrong type for name").to_string(),
+            price: 
+            value.get("price")
+            .expect("could not find price").as_n()
+            .expect("wrong type for price").to_string()
+            .parse::<i32>().expect("could not get the price"),
         }
     }
 }
@@ -35,41 +30,74 @@ impl Pizza {
 #[async_trait]
 pub trait PizzaManager {
     async fn create(&self, pizza: Pizza) -> Result<Pizza>;
-    async fn get(&self, pizza_name: &str) -> Result<Option<Pizza>>;
+    async fn get(&self, pizza_name: String) -> Result<Option<Pizza>>;
 }
 
 pub struct DynamoDBPizzaManager {
-    db: Database,
-    collection_name: String
+    pub client: Client,
+    pub table_name: String
 }
 impl DynamoDBPizzaManager {
-    pub async fn new(host: &str, port: u16, db_name: &str, collection_name: String) -> Self {
-        let client_options = ClientOptions::parse(format!("mongodb://{}:{}", host, port)).await.expect("could not parse the args ");
-        let client = Client::with_options(client_options).expect("could not build the client");
-        let db = client.database(db_name);
+    pub async fn new(port: u16, table_name: String) -> Self {
         DynamoDBPizzaManager {
-            db,
-            collection_name
+            client: DynamoDBPizzaManager::build_client(port).await,
+            table_name
         }
+    }
+
+    async fn build_client(port: u16) -> Client {
+        let local_credentials = Credentials::new("local", "local", None, None, "local");
+        let conf = Config::builder()
+            .endpoint_url(format!("http://localhost:{}", port))
+            .credentials_provider(local_credentials)
+            .region(Region::new("us-east-1"))
+            .build();
+        Client::from_conf(conf)
     }
 }
 
 #[async_trait]
 impl PizzaManager for DynamoDBPizzaManager {
     async fn create(&self, pizza: Pizza) -> Result<Pizza> {
-        let collection = self.db.collection::<Document>(&self.collection_name);
-        match collection.insert_one(pizza.to_document(), None).await {
+        let name = AttributeValue::S(pizza.name.to_string());
+        let price = AttributeValue::N(pizza.price.to_string());
+        
+        let command = self.client
+            .put_item()
+            .table_name(&self.table_name)
+            .item("name", name)
+            .item("price", price)
+            .send();
+
+        match command.await {
             Ok(_) => Ok(pizza),
             Err(_) => Err(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "could not create the pizza")),
         }
     }
 
-    async fn get(&self, pizza_name: &str) -> Result<Option<Pizza>> {
-        let collections = self.db.collection::<Document>(&self.collection_name);
-        let filter = doc! { "name": pizza_name };
-        match collections.find_one(Some(filter), None).await {
-            Ok(document) => Ok(Pizza::from_document(document)),
-            Err(_) => Err(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "could not find the pizza")),
-        }
+    async fn get(&self, pizza_name: String) -> Result<Option<Pizza>> {
+       
+        let command = self
+        .client
+        .query()
+        .table_name(&self.table_name)
+        .expression_attribute_names("#pizza_name", "name")
+        .expression_attribute_values(":name", AttributeValue::S(pizza_name))
+        .key_condition_expression("#pizza_name = :name")
+        .send().await;
+
+        println!("command result = {:?}", command);
+
+
+        let Ok(results) = command else {
+            return Err(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "could not get the pizza"));
+        };
+        let Some(items) = results.items else {
+            return Ok(None);
+        };
+        let Some(pizza) = items.first() else {
+            return Ok(None);
+        };
+        Ok(Some(Pizza::from(pizza)))
     }
 }
