@@ -1,0 +1,88 @@
+use mongodb::bson::{doc, Document};
+use mongodb::error::Error;
+use mongodb::results::InsertOneResult;
+use mongodb::Database;
+use mongodb::{options::ClientOptions, Client};
+
+trait PizzaManager {
+    fn create(db: &Database,
+        collection_name: &str,
+        pizza: Document) -> Result<InsertOneResult, Error>;
+    fn get(db: &Database,
+        collection_name: &str,
+        pizza_name: &str) -> Result<Option<Document>, Error>;
+}
+
+async fn get_client(host: &str, port: u16) -> Result<Client, Error> {
+    let client_options = ClientOptions::parse(format!("mongodb://{}:{}", host, port)).await?;
+    Client::with_options(client_options)
+}
+
+async fn create_pizza(
+    db: &Database,
+    collection_name: &str,
+    pizza: Document,
+) -> Result<InsertOneResult, Error> {
+    let collection = db.collection::<Document>(collection_name);
+    collection.insert_one(pizza, None).await
+}
+
+async fn get_pizza_by_name(
+    db: &Database,
+    collection_name: &str,
+    pizza_name: &str,
+) -> Result<Option<Document>, Error> {
+    let collections = db.collection::<Document>(collection_name);
+    let filter = doc! { "name": pizza_name };
+    collections.find_one(Some(filter), None).await
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    let database_name = "pizza_store";
+    let collection_name = "pizza";
+    let client = get_client("localhost", 27017).await?;
+    let db = client.database(database_name);
+
+    //let pizza = Pizza::new("margherita", ["tomato sauce", "fior di latte", "basel"].to_vec());
+    let pizza =
+        doc! { "name": "margherita", "topings": ["tomato sauce", "fior di latte", "basel"] };
+
+    create_pizza(&db, collection_name, pizza).await?;
+    let result = get_pizza_by_name(&db, collection_name, "margherita").await?;
+
+    println!("Pizza: {}", result.unwrap_or_default());
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+
+    
+
+    // use testcontainers::{clients, images::mongo::Mongo};
+    // use super::*;
+
+    // #[tokio::test]
+    // async fn test_create_pizza() -> Result<(), Error> {
+    //     let docker = clients::Cli::default();
+    //     let node = docker.run(Mongo);
+    //     let port = node.get_host_port_ipv4(27017);
+
+    //     let client = get_client("localhost", port).await.expect("could not get the client");
+
+    //     let database_name = "pizza_store_test";
+    //     let collection_name = "pizza_test";
+
+    //     let pizza =
+    //     doc! { "name": "margherita", "topings": ["tomato sauce", "fior di latte", "basel"] };
+
+    //     let db = client.database(database_name);
+
+    //     let res = create_pizza(&db, collection_name, pizza).await;
+
+    //     assert!(res.is_ok());
+    //     Ok(())
+    // }
+
+}

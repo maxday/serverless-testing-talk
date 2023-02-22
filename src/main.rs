@@ -1,90 +1,59 @@
-use mongodb::bson::{doc, Document};
-use mongodb::error::Error;
-use mongodb::results::InsertOneResult;
-use mongodb::Database;
-use mongodb::{options::ClientOptions, Client};
+use std::io::Result;
+pub mod pizza;
 
-async fn create_pizza(
-    db: &Database,
-    collection_name: &str,
-    pizza: Document,
-) -> Result<InsertOneResult, Error> {
-    let collection = db.collection::<Document>(collection_name);
-    collection.insert_one(pizza, None).await
-}
-
-async fn get_pizza_by_name(
-    db: &Database,
-    collection_name: &str,
-    pizza_name: &str,
-) -> Result<Option<Document>, Error> {
-    let collections = db.collection::<Document>(collection_name);
-    let filter = doc! { "name": pizza_name };
-    collections.find_one(Some(filter), None).await
-}
+use crate::pizza::{DynamoDBPizzaManager, Pizza, PizzaManager};
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    let database_name = "pizza_store";
-    let collection_name = "pizza";
-
-    let client_options = ClientOptions::parse("mongodb://localhost:27017").await?;
-    let client = Client::with_options(client_options)?;
-    let db = client.database(database_name);
-
-    let pizza =
-        doc! { "name": "margherita", "topings": ["tomato sauce", "fior di latte", "basel"] };
-
-    create_pizza(&db, &collection_name, pizza).await?;
-    let result = get_pizza_by_name(&db, &collection_name, "margherita").await?;
-
-    println!("Pizza: {}", result.unwrap_or_default());
+async fn main() -> Result<()> {
+    let pizza_manager = DynamoDBPizzaManager::new("localhost", 27017, "pizza_store", "pizza".to_string()).await;
+    let pizza = Pizza::new("margherita".to_string(), 10);
+    pizza_manager.create(pizza).await?;
+    let result = pizza_manager.get("margherita").await?;
+    println!("Pizza: {:?}", result);
     Ok(())
 }
 
-// #[cfg(test)]
-// mod tests {
+#[cfg(test)]
+mod tests {
 
-//     use testcontainers::clients;
-//     use super::*;
+    use testcontainers::{clients, images::mongo::Mongo};
+    use super::*;
+    use async_trait::async_trait;
 
-//     #[tokio::test]
-//     async fn test_insert_pizza() -> Result<(), Error> {
-//         let docker = clients::Cli::default();
-//         let node = docker.run(auth_mock::AuthMock::default());
-//         let port = node.get_host_port_ipv4(3000);
+    #[derive(Default)]
+    struct MockedPizzaManager;
 
-//         let fake_repo = TestDbData {};
-//         let auth_config = Data::new(AuthConfig::new(format!("http://0.0.0.0:{}/user", port)));
-//         let app = test::init_service(
-//             app!(Some("emptyDb"), Data::clone(&auth_config), TestDbData)
-//                 .app_data(web::Data::new(fake_repo).clone()),
-//         )
-//         .await;
-//         let course = Course {
-//             uuid: String::from("test-uuid"),
-//             user_id: String::from("100"),
-//             name: String::from("test-name"),
-//         };
-//         let req = test::TestRequest::post()
-//             .set_json(&course)
-//             .uri("/courses")
-//             .append_header((AUTHORIZATION, "Bearer valid-test-token"))
-//             .to_request();
-//         let resp = test::call_service(&app, req).await;
-//         assert!(resp.status().is_success());
+    #[async_trait]
+    impl PizzaManager for MockedPizzaManager {
+        async fn create(&self, _pizza:Pizza) ->  Result<Pizza> {
+            Ok(Pizza::new("test-pizza".to_string(), 1))
+        }
+        async fn get(&self, _pizza_name:&str) ->  Result<Option<Pizza>> {
+            Ok(Some(Pizza::new("test-pizza".to_string(), 1)))
+        }
+    }
 
-//         let req = test::TestRequest::get()
-//             .uri("/courses/test-uuid")
-//             .append_header((AUTHORIZATION, "Bearer valid-test-token"))
-//             .to_request();
-//         let resp = test::call_service(&app, req).await;
-//         assert!(resp.status().is_success());
-//         Ok(())
-//     }
+    #[tokio::test]
+    async fn test_creat_get_pizza_mocked() -> Result<()> {
+        let pizza_manager = MockedPizzaManager::default();
+        let pizza = Pizza::new("margherita".to_string(), 10);
+        pizza_manager.create(pizza).await?;
+        let res = pizza_manager.get("margherita").await;
+        assert!(res.is_ok());
+        Ok(())
+    }
 
-// }
+    #[tokio::test]
+    async fn test_creat_get_pizza() -> Result<()> {
+        let docker = clients::Cli::default();
+        let node = docker.run(Mongo);
+        let port = node.get_host_port_ipv4(27017);
+        let pizza_manager = DynamoDBPizzaManager::new("localhost", port, "pizza_store_test", "pizza_test".to_string()).await;
+        let pizza = Pizza::new("margherita".to_string(), 10);
+        pizza_manager.create(pizza).await?;
+        let res = pizza_manager.get("margherita").await;
+        assert!(res.is_ok());
+        Ok(())
+    }
 
-// client_options.app_name = Some("My App".to_string());
-// client_options.connect_timeout = Some(Duration::from_secs(1));
-// client_options.server_selection_timeout = Some(Duration::from_secs(1));
+}
