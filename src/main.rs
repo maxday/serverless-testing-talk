@@ -1,9 +1,8 @@
-
 pub mod pizza;
 
 use crate::pizza::{DynamoDBPizzaManager, PizzaManager};
-use lambda_runtime::{Error, run, service_fn, LambdaEvent};
-use serde_json::{Value, json};
+use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use serde_json::{json, Value};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -21,16 +20,15 @@ async fn handler(_event: LambdaEvent<Value>) -> Result<Value, Error> {
 #[cfg(test)]
 mod tests {
 
-    use testcontainers::{clients, self, images};
-    use crate::pizza::Pizza;
-    use core::time;
-    use std::{io::Result, thread};
     use super::*;
+    use crate::pizza::Pizza;
+    use std::io::Result;
+    use testcontainers::{self, clients, images};
 
     use aws_sdk_dynamodb::model::{
         AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,
     };
-    
+
     use async_trait::async_trait;
 
     #[derive(Default)]
@@ -38,10 +36,10 @@ mod tests {
 
     #[async_trait]
     impl PizzaManager for MockedPizzaManager {
-        async fn create(&self, _pizza:Pizza) ->  Result<Pizza> {
+        async fn create(&self, _pizza: Pizza) -> Result<Pizza> {
             Ok(Pizza::new("test-pizza".to_string(), 10))
         }
-        async fn get(&self, _pizza_name: String) ->  Result<Option<Pizza>> {
+        async fn get(&self, _pizza_name: String) -> Result<Option<Pizza>> {
             Ok(Some(Pizza::new(String::from("test-pizza"), 10)))
             //Ok(None)
         }
@@ -89,7 +87,8 @@ mod tests {
             .write_capacity_units(5)
             .build();
 
-        let create_table_result = manager.client
+        let create_table_result = manager
+            .client
             .create_table()
             .table_name(&manager.table_name)
             .key_schema(key_schema_hash)
@@ -97,11 +96,10 @@ mod tests {
             .provisioned_throughput(provisioned_throughput)
             .send()
             .await;
-        
+
         assert!(create_table_result.is_ok());
         let req = manager.client.list_tables().limit(1);
         let list_tables_result = req.send().await.unwrap();
         assert_eq!(list_tables_result.table_names().unwrap().len(), 1);
     }
-
 }
