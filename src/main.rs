@@ -118,7 +118,7 @@ mod tests {
         let conf = Config::builder()
             .endpoint_url(format!("http://localhost:{}", port))
             .credentials_provider(local_credentials)
-            .region(Region::new("us-east-1"))
+            .region(Region::new("test-region"))
             .build();
         Client::from_conf(conf)
     }
