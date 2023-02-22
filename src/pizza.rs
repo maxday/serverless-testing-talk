@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{model::AttributeValue, Client, Config, Credentials, Region};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, io::Result};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Pizza {
     name: String,
     price: i32,
@@ -43,21 +44,15 @@ pub struct DynamoDBPizzaManager {
     pub table_name: String,
 }
 impl DynamoDBPizzaManager {
-    pub async fn new(port: u16, table_name: String) -> Self {
-        DynamoDBPizzaManager {
-            client: DynamoDBPizzaManager::build_client(port).await,
-            table_name,
-        }
-    }
-
-    async fn build_client(port: u16) -> Client {
-        let local_credentials = Credentials::new("local", "local", None, None, "local");
-        let conf = Config::builder()
-            .endpoint_url(format!("http://localhost:{}", port))
-            .credentials_provider(local_credentials)
-            .region(Region::new("us-east-1"))
-            .build();
-        Client::from_conf(conf)
+    pub async fn new(table_name: String, client: Option<Client>) -> Self {
+        let client = match client {
+            Some(client) => client,
+            None => {
+                let shared_config = aws_config::load_from_env().await;
+                aws_sdk_dynamodb::Client::new(&shared_config)
+            }
+        };
+        DynamoDBPizzaManager { client, table_name }
     }
 }
 

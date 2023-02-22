@@ -2,7 +2,7 @@ pub mod pizza;
 
 use crate::pizza::{DynamoDBPizzaManager, PizzaManager};
 use lambda_runtime::{run, service_fn, Error, LambdaEvent};
-use serde_json::{json, Value};
+use pizza::Pizza;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -11,10 +11,14 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-async fn handler(_event: LambdaEvent<Value>) -> Result<Value, Error> {
-    let pizza_manager = DynamoDBPizzaManager::new(27017, String::from("pizza")).await;
-    let _ = pizza_manager.get(String::from("margherita")).await?;
-    Ok(json!({ "statusCode": 200, "body": "Hello world!" }))
+async fn handler(_event: LambdaEvent<Pizza>) -> Result<Pizza, Error> {
+    let table_name = std::env::var("PIZZA_NAME").expect("could not find the table name");
+    let pizza_manager = DynamoDBPizzaManager::new(table_name, None).await;
+    let pizza = pizza_manager.get(String::from("margherita")).await?;
+    match pizza {
+        None => panic!("could not find the pizza"),
+        Some(pizza) => Ok(pizza),
+    }
 }
 
 #[cfg(test)]
@@ -25,8 +29,12 @@ mod tests {
     use std::io::Result;
     use testcontainers::{self, clients, images};
 
-    use aws_sdk_dynamodb::model::{
-        AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,
+    use aws_sdk_dynamodb::{
+        model::{
+            AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput,
+            ScalarAttributeType,
+        },
+        Client, Config, Credentials, Region,
     };
 
     use async_trait::async_trait;
@@ -60,7 +68,9 @@ mod tests {
         let docker = clients::Cli::default();
         let node = docker.run(images::dynamodb_local::DynamoDb::default());
         let port = node.get_host_port_ipv4(8000);
-        let pizza_manager = DynamoDBPizzaManager::new(port, String::from("pizza_test_2")).await;
+        let client = build_custom_client(port).await;
+        let pizza_manager =
+            DynamoDBPizzaManager::new(String::from("pizza_test_2"), Some(client)).await;
         create_db(&pizza_manager).await;
         let pizza = Pizza::new("margherita".to_string(), 10);
         let r = pizza_manager.create(pizza).await?;
@@ -101,5 +111,15 @@ mod tests {
         let req = manager.client.list_tables().limit(1);
         let list_tables_result = req.send().await.unwrap();
         assert_eq!(list_tables_result.table_names().unwrap().len(), 1);
+    }
+
+    async fn build_custom_client(port: u16) -> Client {
+        let local_credentials = Credentials::new("local", "local", None, None, "local");
+        let conf = Config::builder()
+            .endpoint_url(format!("http://localhost:{}", port))
+            .credentials_provider(local_credentials)
+            .region(Region::new("us-east-1"))
+            .build();
+        Client::from_conf(conf)
     }
 }

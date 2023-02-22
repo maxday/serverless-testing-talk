@@ -1,5 +1,5 @@
 [package]
-name = "test_container"
+name = "confoo"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.64"
+aws-config = "0.54.1"
 aws-sdk-dynamodb = "0.24.0"
 lambda_http = "0.7.3"
 lambda_runtime = "0.7.3"
