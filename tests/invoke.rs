@@ -12,18 +12,25 @@ fn invoke_success() {
 
     // create
     let client = reqwest::blocking::Client::new();
-    let res = client.post(format!("{}/pizza", url))
+    let res = client
+        .post(format!("{}/pizza", url))
         .json(&pizza)
         .send()
         .expect("could not send the request");
-    assert!(res.status().is_success());
+    let status = res.status();
+
+    println!("output: {}", res.text().unwrap());
+    assert!(status.is_success());
 
     // get
     let client = reqwest::blocking::Client::new();
-    let res = client.get(format!("{}/pizza/test-pizza", url))
+    let res = client
+        .get(format!("{}/pizza/test-pizza", url))
         .send()
         .expect("could not send the request");
-    assert!(res.status().is_success());
+    let status = res.status();
+    println!("output: {}", res.text().unwrap());
+    assert!(status.is_success());
 }
 
 #[test]
@@ -37,16 +44,22 @@ fn invoke_failure() {
 
     // create
     let client = reqwest::blocking::Client::new();
-    let res = client.post(format!("{}/pizza", url))
+    let res = client
+        .post(format!("{}/pizza", url))
         .json(&pizza)
         .send()
         .expect("could not send the request");
-    assert_eq!(res.status(), 400);
+    let status = res.status();
+    println!("output: {}", res.text().unwrap());
+    assert_eq!(status, 400);
 
     // get
     let client = reqwest::blocking::Client::new();
-    let res = client.get(format!("{}/pizza/invalid-pizza", url))
+    let res = client
+        .get(format!("{}/pizza/invalid-pizza", url))
         .send()
         .expect("could not send the request");
-    assert_eq!(res.status(), 400);
+    let status = res.status();
+    println!("output: {}", res.text().unwrap());
+    assert_eq!(status, 400);
 }

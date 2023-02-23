@@ -156,10 +156,8 @@ mod tests {
             DynamoDBPizzaManager::new(String::from("pizza_test_2"), Some(client)).await;
         create_db(&pizza_manager).await;
         let pizza = Pizza::new("margherita".to_string(), 10);
-        let r = pizza_manager.create(pizza).await?;
-        println!("R = {:?}", r);
+        pizza_manager.create(pizza).await?;
         let res = pizza_manager.get(String::from("margherita")).await;
-        println!("RES = {:?}", res);
         assert!(res.is_ok());
         Ok(())
     }

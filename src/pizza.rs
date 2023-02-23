@@ -66,8 +66,6 @@ impl PizzaManager for DynamoDBPizzaManager {
             .send()
             .await;
 
-        println!("command result = {:?}", command);
-
         let Ok(results) = command else {
             return Err(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "could not get the pizza"));
         };
