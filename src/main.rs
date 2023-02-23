@@ -17,9 +17,9 @@ async fn main() -> core::result::Result<(), Error> {
 async fn handler(request: Request) -> std::io::Result<impl IntoResponse> {
     let table_name = std::env::var("TABLE_NAME").expect("could not find the table name");
     let pizza_manager = DynamoDBPizzaManager::new(table_name, None).await;
-    match request.method() {
-        &Method::GET => handle_get(pizza_manager, request).await,
-        &Method::POST => handle_post(pizza_manager, request).await,
+    match *request.method() {
+        Method::GET => handle_get(pizza_manager, request).await,
+        Method::POST => handle_post(pizza_manager, request).await,
         _ => Ok(build_error("unsupported")),
     }
 }
