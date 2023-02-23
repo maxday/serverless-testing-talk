@@ -36,17 +36,20 @@ jobs:
         run: npm install -g serverless
 
       - name: Deploy
-        run: serverless deploy
+        run: |
+          serverless deploy
+          serverless info --verbose 2>/dev/null
+          URL=$(serverless info --verbose 2>/dev/null | grep ServiceEndpoint | sed s/ServiceEndpoint\:\ //g | awk '{print $1}')
+          echo "URL=$URL" >> $GITHUB_ENV
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: us-east-1
 
       - name: Run integration tests 
-        run: |
-          export URL=$(serverless info --verbose 2>/dev/null | grep ServiceEndpoint | sed s/ServiceEndpoint\:\ //g | awk '{print $1}')
-          echo $URL
-          cargo test --test '*' -- --nocapture
+        run: cargo test --test '*' -- --nocapture
+        env:
+          URL: ${{ env.URL }}
 
       - name: Destroy
         run: serverless remove

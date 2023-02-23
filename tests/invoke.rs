@@ -17,8 +17,8 @@ fn invoke_success() {
         .json(&pizza)
         .send()
         .expect("could not send the request");
-    let status = res.status();
 
+    let status = res.status();
     println!("output: {}", res.text().unwrap());
     assert!(status.is_success());
 
@@ -28,6 +28,7 @@ fn invoke_success() {
         .get(format!("{}/pizza/test-pizza", url))
         .send()
         .expect("could not send the request");
+
     let status = res.status();
     println!("output: {}", res.text().unwrap());
     assert!(status.is_success());
@@ -49,6 +50,7 @@ fn invoke_failure() {
         .json(&pizza)
         .send()
         .expect("could not send the request");
+
     let status = res.status();
     println!("output: {}", res.text().unwrap());
     assert_eq!(status, 400);
@@ -59,6 +61,7 @@ fn invoke_failure() {
         .get(format!("{}/pizza/invalid-pizza", url))
         .send()
         .expect("could not send the request");
+
     let status = res.status();
     println!("output: {}", res.text().unwrap());
     assert_eq!(status, 400);
