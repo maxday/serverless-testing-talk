@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{model::AttributeValue, Client};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, io::Result};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -48,12 +48,10 @@ impl PizzaManager for DynamoDBPizzaManager {
 
         match command.await {
             Ok(_) => Ok(pizza),
-            Err(_) => {
-                Err(std::io::Error::new(
+            Err(_) => Err(std::io::Error::new(
                 std::io::ErrorKind::ConnectionRefused,
                 "could not create the pizza",
-            ))
-        },
+            )),
         }
     }
 

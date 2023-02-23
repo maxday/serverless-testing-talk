@@ -2,8 +2,8 @@ pub mod pizza;
 
 use crate::pizza::{DynamoDBPizzaManager, PizzaManager};
 use lambda_http::{
-    aws_lambda_events::{serde_json::json}, service_fn, Body, Error, IntoResponse, Request,
-    RequestExt, Response, http::Method,
+    aws_lambda_events::serde_json::json, http::Method, service_fn, Body, Error, IntoResponse,
+    Request, RequestExt, Response,
 };
 use pizza::Pizza;
 use std::io::Result;
@@ -20,7 +20,7 @@ async fn handler(request: Request) -> std::io::Result<impl IntoResponse> {
     match request.method() {
         &Method::GET => handle_get(pizza_manager, request).await,
         &Method::POST => handle_post(pizza_manager, request).await,
-        _ => Ok(build_error("unsupported"))
+        _ => Ok(build_error("unsupported")),
     }
 }
 
@@ -60,10 +60,10 @@ mod tests {
 
     use super::*;
     use crate::pizza::Pizza;
-    use std::io::{Result};
     use lambda_http::http::HeaderValue;
-    use testcontainers::{self, clients, images};
     use maplit::hashmap;
+    use std::io::Result;
+    use testcontainers::{self, clients, images};
 
     use aws_sdk_dynamodb::{
         model::{
@@ -120,9 +120,10 @@ mod tests {
     async fn test_create_post_pizza_mocked_success() -> Result<()> {
         let pizza_manager = MockedPizzaManager::default();
         let pizza = Pizza::new(String::from("test-pizza"), 10);
-        let mut request = Request::new(
-            Body::from(serde_json::to_string(&pizza)?));
-        request.headers_mut().append("content-type", HeaderValue::from_static("application/json"));
+        let mut request = Request::new(Body::from(serde_json::to_string(&pizza)?));
+        request
+            .headers_mut()
+            .append("content-type", HeaderValue::from_static("application/json"));
         let result = handle_post(pizza_manager, request).await;
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -135,9 +136,10 @@ mod tests {
     async fn test_create_post_pizza_mocked_error() -> Result<()> {
         let pizza_manager = MockedPizzaManager::default();
         let pizza = "invalid-input";
-        let mut request = Request::new(
-            Body::from(serde_json::to_string(&pizza)?));
-        request.headers_mut().append("content-type", HeaderValue::from_static("application/json"));
+        let mut request = Request::new(Body::from(serde_json::to_string(&pizza)?));
+        request
+            .headers_mut()
+            .append("content-type", HeaderValue::from_static("application/json"));
         let result = handle_post(pizza_manager, request).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().status(), 400);
