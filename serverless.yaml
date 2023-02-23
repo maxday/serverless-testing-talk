@@ -8,10 +8,10 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action: "dynamodb:PutItem"
-      Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza"
+      Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza-demo"
     - Effect: Allow
       Action: "dynamodb:Query"
-      Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza"
+      Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza-demo"
 
 package: #(4)
   artifact: target/lambda/confoo/bootstrap.zip
@@ -20,7 +20,7 @@ functions: # (5)
   hello-world: 
     handler: bootstrap # (6)
     environment:
-      TABLE_NAME: confoo-pizza
+      TABLE_NAME: confoo-pizza-demo
     events: # (7)
       - http:
           path: /pizza/{pizza_name}
@@ -38,7 +38,7 @@ resources:
     usersTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: confoo-pizza
+        TableName: confoo-pizza-demo
         AttributeDefinitions:
           - AttributeName: name
             AttributeType: S

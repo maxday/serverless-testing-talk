@@ -8,7 +8,6 @@ async-trait = "0.1.64"
 aws-config = "0.54.1"
 aws-sdk-dynamodb = "0.24.0"
 lambda_http = "0.7.3"
-lambda_runtime = "0.7.3"
 maplit = "1.0.2"
 serde = "1.0.152"
 serde_json = "1.0.93"
@@ -17,3 +16,4 @@ tokio = { version = "1.24.2", features = ["macros"] }
 [dev-dependencies]
 testcontainers = "0.14.0"
 maplit = "1.0.2"
+reqwest = { version = "0.11.14", features = ["blocking", "json"] }

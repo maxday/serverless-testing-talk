@@ -48,9 +48,9 @@ impl PizzaManager for DynamoDBPizzaManager {
 
         match command.await {
             Ok(_) => Ok(pizza),
-            Err(_) => Err(std::io::Error::new(
+            Err(e) => Err(std::io::Error::new(
                 std::io::ErrorKind::ConnectionRefused,
-                "could not create the pizza",
+                e,
             )),
         }
     }
