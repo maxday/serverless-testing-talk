@@ -5,7 +5,7 @@ use std::{collections::HashMap, io::Result};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Pizza {
-    pub name: String,
+    name: String,
     price: i32,
 }
 
@@ -44,9 +44,11 @@ impl PizzaManager for DynamoDBPizzaManager {
             .table_name(&self.table_name)
             .item("name", name)
             .item("price", price)
-            .send();
+            .send().await;
 
-        match command.await {
+        println!("command result = {:?}", command);
+
+        match command {
             Ok(_) => Ok(pizza),
             Err(e) => Err(std::io::Error::new(
                 std::io::ErrorKind::ConnectionRefused,
@@ -65,6 +67,8 @@ impl PizzaManager for DynamoDBPizzaManager {
             .key_condition_expression("#pizza_name = :name")
             .send()
             .await;
+
+        println!("command result = {:?}", command);
 
         let Ok(results) = command else {
             return Err(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "could not get the pizza"));
