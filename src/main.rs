@@ -94,7 +94,7 @@ mod tests {
         let path_params = hashmap! {
             "pizza_name".into() => vec!["deluxe".into()]
         };
-        let request = Request::default().with_path_parameters(path_params.clone());
+        let request = Request::default().with_path_parameters(path_params);
         let result = handle_get(pizza_manager, request).await;
         assert!(result.is_ok());
         let result = result.unwrap();
@@ -109,7 +109,7 @@ mod tests {
         let path_params = hashmap! {
             "invalid_param".into() => vec!["deluxe".into()]
         };
-        let request = Request::default().with_query_string_parameters(path_params.clone());
+        let request = Request::default().with_query_string_parameters(path_params);
         let result = handle_get(pizza_manager, request).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().status(), 400);

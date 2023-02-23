@@ -5,7 +5,7 @@ use std::{collections::HashMap, io::Result};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Pizza {
-    pub name: String,
+    name: String,
     price: i32,
 }
 
