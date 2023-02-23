@@ -1,4 +1,4 @@
-service: confoo-service # (1)
+service: confoo-service-demo # (1)
 
 provider:
   name: aws
