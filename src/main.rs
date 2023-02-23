@@ -1,24 +1,58 @@
 pub mod pizza;
 
 use crate::pizza::{DynamoDBPizzaManager, PizzaManager};
-use lambda_runtime::{run, service_fn, Error, LambdaEvent};
+use lambda_http::{
+    aws_lambda_events::{serde_json::json}, service_fn, Body, Error, IntoResponse, Request,
+    RequestExt, Response, http::Method,
+};
 use pizza::Pizza;
+use std::io::Result;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    let service = service_fn(handler);
-    run(service).await?;
+async fn main() -> core::result::Result<(), Error> {
+    lambda_http::run(service_fn(handler)).await?;
     Ok(())
 }
 
-async fn handler(_event: LambdaEvent<Pizza>) -> Result<Pizza, Error> {
-    let table_name = std::env::var("PIZZA_NAME").expect("could not find the table name");
+async fn handler(request: Request) -> std::io::Result<impl IntoResponse> {
+    let table_name = std::env::var("TABLE_NAME").expect("could not find the table name");
     let pizza_manager = DynamoDBPizzaManager::new(table_name, None).await;
-    let pizza = pizza_manager.get(String::from("margherita")).await?;
-    match pizza {
-        None => panic!("could not find the pizza"),
-        Some(pizza) => Ok(pizza),
+    match request.method() {
+        &Method::GET => handle_get(pizza_manager, request).await,
+        &Method::POST => handle_post(pizza_manager, request).await,
+        _ => Ok(build_error("unsupported"))
     }
+}
+
+async fn handle_get(pizza_manager: impl PizzaManager, request: Request) -> Result<Response<Body>> {
+    let path_params = request.path_parameters();
+
+    let Some(pizza_name) = path_params.first("pizza_name") else {
+        return Ok(build_error("no param found"));
+    };
+    let pizza = pizza_manager.get(String::from(pizza_name)).await?;
+    match pizza {
+        None => Ok(build_error("no pizza found")),
+        Some(pizza) => Ok(json!(pizza).into_response().await),
+    }
+}
+
+async fn handle_post(pizza_manager: impl PizzaManager, request: Request) -> Result<Response<Body>> {
+    let parse_pizza = request.payload::<Pizza>().unwrap_or_default();
+    let Some(pizza) = parse_pizza else {
+        return Ok(build_error("could not read the pizza"))
+    };
+    let pizza = pizza_manager.create(pizza).await?;
+    Ok(json!(pizza).into_response().await)
+}
+
+fn build_error(error_message: &str) -> Response<Body> {
+    Response::builder()
+        .status(400)
+        .body(lambda_http::Body::from(
+            json!({ "error": error_message }).to_string(),
+        ))
+        .expect("impossible to build the error response")
 }
 
 #[cfg(test)]
@@ -26,8 +60,10 @@ mod tests {
 
     use super::*;
     use crate::pizza::Pizza;
-    use std::io::Result;
+    use std::io::{Result};
+    use lambda_http::http::HeaderValue;
     use testcontainers::{self, clients, images};
+    use maplit::hashmap;
 
     use aws_sdk_dynamodb::{
         model::{
@@ -49,17 +85,62 @@ mod tests {
         }
         async fn get(&self, _pizza_name: String) -> Result<Option<Pizza>> {
             Ok(Some(Pizza::new(String::from("test-pizza"), 10)))
-            //Ok(None)
         }
     }
 
     #[tokio::test]
-    async fn test_create_get_pizza_mocked() -> Result<()> {
+    async fn test_create_get_pizza_mocked_success() -> Result<()> {
         let pizza_manager = MockedPizzaManager::default();
-        let pizza = Pizza::new(String::from("margherita"), 10);
-        pizza_manager.create(pizza).await?;
-        let res = pizza_manager.get(String::from("margherita")).await?;
-        assert!(res.is_some());
+        let path_params = hashmap! {
+            "pizza_name".into() => vec!["deluxe".into()]
+        };
+        let request = Request::default().with_path_parameters(path_params.clone());
+        let result = handle_get(pizza_manager, request).await;
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        let result = std::str::from_utf8(result.body()).unwrap();
+        assert_eq!("{\"name\":\"test-pizza\",\"price\":10}", result);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_get_pizza_mocked_error() -> Result<()> {
+        let pizza_manager = MockedPizzaManager::default();
+        let path_params = hashmap! {
+            "invalid_param".into() => vec!["deluxe".into()]
+        };
+        let request = Request::default().with_query_string_parameters(path_params.clone());
+        let result = handle_get(pizza_manager, request).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().status(), 400);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_post_pizza_mocked_success() -> Result<()> {
+        let pizza_manager = MockedPizzaManager::default();
+        let pizza = Pizza::new(String::from("test-pizza"), 10);
+        let mut request = Request::new(
+            Body::from(serde_json::to_string(&pizza)?));
+        request.headers_mut().append("content-type", HeaderValue::from_static("application/json"));
+        let result = handle_post(pizza_manager, request).await;
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        let result = std::str::from_utf8(result.body()).unwrap();
+        assert_eq!("{\"name\":\"test-pizza\",\"price\":10}", result);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_post_pizza_mocked_error() -> Result<()> {
+        let pizza_manager = MockedPizzaManager::default();
+        let pizza = "invalid-input";
+        let mut request = Request::new(
+            Body::from(serde_json::to_string(&pizza)?));
+        request.headers_mut().append("content-type", HeaderValue::from_static("application/json"));
+        let result = handle_post(pizza_manager, request).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().status(), 400);
         Ok(())
     }
 

@@ -7,7 +7,10 @@ provider:
   region: us-east-1 # (3)
   iamRoleStatements:
     - Effect: Allow
-      Action: "dynamodb:GetItem"
+      Action: "dynamodb:PutItem"
+      Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza"
+    - Effect: Allow
+      Action: "dynamodb:Query"
       Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza"
 
 package: #(4)
@@ -20,5 +23,28 @@ functions: # (5)
       TABLE_NAME: confoo-pizza
     events: # (7)
       - http:
-          path: /pizza
+          path: /pizza/{pizza_name}
           method: get
+          request:
+            parameters:
+              paths:
+                pizza_name: true
+      - http:
+          path: /pizza
+          method: post
+
+resources: 
+  Resources:
+    usersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: confoo-pizza
+        AttributeDefinitions:
+          - AttributeName: name
+            AttributeType: S
+        KeySchema:
+          - AttributeName: name
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1

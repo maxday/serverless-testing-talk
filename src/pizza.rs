@@ -1,36 +1,12 @@
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{model::AttributeValue, Client};
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 use std::{collections::HashMap, io::Result};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Pizza {
-    name: String,
+    pub name: String,
     price: i32,
-}
-
-impl Pizza {
-    pub fn new(name: String, price: i32) -> Self {
-        Pizza { name, price }
-    }
-    fn from(value: &HashMap<String, AttributeValue>) -> Pizza {
-        Pizza {
-            name: value
-                .get("name")
-                .expect("could not find name")
-                .as_s()
-                .expect("wrong type for name")
-                .to_string(),
-            price: value
-                .get("price")
-                .expect("could not find price")
-                .as_n()
-                .expect("wrong type for price")
-                .to_string()
-                .parse::<i32>()
-                .expect("could not get the price"),
-        }
-    }
 }
 
 #[async_trait]
@@ -72,10 +48,12 @@ impl PizzaManager for DynamoDBPizzaManager {
 
         match command.await {
             Ok(_) => Ok(pizza),
-            Err(_) => Err(std::io::Error::new(
+            Err(_) => {
+                Err(std::io::Error::new(
                 std::io::ErrorKind::ConnectionRefused,
                 "could not create the pizza",
-            )),
+            ))
+        },
         }
     }
 
@@ -102,5 +80,29 @@ impl PizzaManager for DynamoDBPizzaManager {
             return Ok(None);
         };
         Ok(Some(Pizza::from(pizza)))
+    }
+}
+
+impl Pizza {
+    pub fn new(name: String, price: i32) -> Self {
+        Pizza { name, price }
+    }
+    fn from(value: &HashMap<String, AttributeValue>) -> Pizza {
+        Pizza {
+            name: value
+                .get("name")
+                .expect("could not find name")
+                .as_s()
+                .expect("wrong type for name")
+                .to_string(),
+            price: value
+                .get("price")
+                .expect("could not find price")
+                .as_n()
+                .expect("wrong type for price")
+                .to_string()
+                .parse::<i32>()
+                .expect("could not get the price"),
+        }
     }
 }
