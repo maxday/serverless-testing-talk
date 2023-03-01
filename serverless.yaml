@@ -5,6 +5,13 @@ provider:
   deploymentMethod: direct
   runtime: provided.al2 # (2)
   region: us-east-1 # (3)
+  iamRoleStatements:
+  - Effect: Allow
+    Action: "dynamodb:PutItem"
+    Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza-demo"
+  - Effect: Allow
+    Action: "dynamodb:Query"
+    Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza-demo"
 
 package: #(4)
   artifact: target/lambda/confoo/bootstrap.zip
