@@ -46,7 +46,8 @@ jobs:
 
       - name: Deploy
         run: |
-          AWS_REGION=us-east-2 serverless deploy
+          export AWS_REGION=us-east-2
+          serverless deploy
           URL=$(serverless info --verbose 2>/dev/null | grep ServiceEndpoint | sed s/ServiceEndpoint\:\ //g | awk '{print $1}')
           echo "URL=$URL" >> $GITHUB_ENV
         env:
