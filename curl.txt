@@ -1,0 +1,6 @@
+curl -X POST https://9z0ezr5q0f.execute-api.us-east-2.amazonaws.com/dev/pizza \
+   -H 'Content-Type: application/json' \
+   -d '{"name":"deluxe","price":10}'
+
+
+curl -X GET https://9z0ezr5q0f.execute-api.us-east-2.amazonaws.com/dev/pizza/deluxe
