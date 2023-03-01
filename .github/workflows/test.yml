@@ -60,14 +60,14 @@ jobs:
           URL: ${{ env.URL }}
 
       - name: Destroy
-        run: AWS_REGION=east-2 serverless remove
+        run: AWS_REGION=us-east-2 serverless remove
         if: always()
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Deploy
-        run: AWS_REGION=east-1 serverless deploy
+        run: AWS_REGION=us-east-1 serverless deploy
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
