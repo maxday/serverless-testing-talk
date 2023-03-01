@@ -14,7 +14,7 @@ provider:
     Resource: "arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/confoo-pizza-demo"
 
 package: #(4)
-  artifact: target/lambda/confoo/bootstrap.zip
+  artifact: bootstrap.zip
 
 functions: # (5)
   hello-world: 
