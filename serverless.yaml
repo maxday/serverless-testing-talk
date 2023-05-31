@@ -17,7 +17,7 @@ package: #(4)
   artifact: target/lambda/confoo/bootstrap.zip
 
 functions: # (5)
-  hello-world: 
+  pizza:
     handler: bootstrap # (6)
     environment: # (7)
       TABLE_NAME: confoo-pizza-demo
