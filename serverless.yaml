@@ -8,10 +8,10 @@ provider:
   iamRoleStatements:
   - Effect: Allow
     Action: "dynamodb:PutItem"
-    Resource: "arn:aws:dynamodb:${env:AWS_REGION}:${aws:accountId}:table/confoo-pizza-demo"
+    Resource: "arn:aws:dynamodb:${env:AWS_REGION}:${aws:accountId}:table/pizza-service-demo"
   - Effect: Allow
     Action: "dynamodb:Query"
-    Resource: "arn:aws:dynamodb:${env:AWS_REGION}:${aws:accountId}:table/confoo-pizza-demo"
+    Resource: "arn:aws:dynamodb:${env:AWS_REGION}:${aws:accountId}:table/pizza-service-demo"
 
 package: #(4)
   artifact: target/lambda/pizza-service-demo/bootstrap.zip
@@ -20,7 +20,7 @@ functions: # (5)
   pizza:
     handler: bootstrap # (6)
     environment: # (7)
-      TABLE_NAME: pizza-service-demo-demo
+      TABLE_NAME: pizza-service-demo
     events: # (8)
       - http:
           path: /pizza/{pizza_name}
