@@ -1,4 +1,4 @@
-service: confoo-service-demo # (1)
+service: pizza-service-demo # (1)
 
 provider:
   name: aws
@@ -7,13 +7,13 @@ provider:
   region: ${env:AWS_REGION} # (3)
 
 package: #(4)
-  artifact: target/lambda/confoo/bootstrap.zip
+  artifact: target/lambda/pizza-service-demo/bootstrap.zip
 
 functions: # (5)
-  hello-world: 
+  pizza:
     handler: bootstrap # (6)
     environment: # (7)
-      TABLE_NAME: confoo-pizza-demo
+      TABLE_NAME: pizza-service-demo
     events: # (8)
       - http:
           path: /pizza/{pizza_name}
@@ -31,7 +31,7 @@ resources: # (9)
     usersTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: confoo-pizza-demo
+        TableName: pizza-service-demo
         AttributeDefinitions:
           - AttributeName: name
             AttributeType: S
