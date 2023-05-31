@@ -44,9 +44,8 @@ impl PizzaManager for DynamoDBPizzaManager {
             .table_name(&self.table_name)
             .item("name", name)
             .item("price", price)
-            .send().await;
-
-        println!("command result = {:?}", command);
+            .send()
+            .await;
 
         match command {
             Ok(_) => Ok(pizza),
@@ -67,8 +66,6 @@ impl PizzaManager for DynamoDBPizzaManager {
             .key_condition_expression("#pizza_name = :name")
             .send()
             .await;
-
-        println!("command result = {:?}", command);
 
         let Ok(results) = command else {
             return Err(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "could not get the pizza"));
