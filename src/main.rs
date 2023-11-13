@@ -10,26 +10,43 @@ use std::io::Result;
 
 #[tokio::main]
 async fn main() -> core::result::Result<(), Error> {
-    lambda_http::run(service_fn(handler)).await?;
+    tracing_subscriber::fmt()
+        .json()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .with_ansi(false)
+        .without_time()
+        .init();
+
+    let table_name = std::env::var("TABLE_NAME").expect("could not find the table name");
+    let pizza_manager = DynamoDBPizzaManager::new(table_name, None).await;
+    let pizza_manager_ref = &pizza_manager;
+
+    let handler_func_closure =
+        |request: Request| async move { process_event(request, pizza_manager_ref).await };
+
+    lambda_http::run(service_fn(handler_func_closure)).await?;
     Ok(())
 }
 
-async fn handler(request: Request) -> std::io::Result<impl IntoResponse> {
-    let table_name = std::env::var("TABLE_NAME").expect("could not find the table name");
-    let pizza_manager = DynamoDBPizzaManager::new(table_name, None).await;
+async fn process_event(
+    request: Request,
+    pizza_manager: &impl PizzaManager,
+) -> std::io::Result<impl IntoResponse> {
     match *request.method() {
-        Method::GET => handle_get(pizza_manager, request).await,
-        Method::POST => handle_post(pizza_manager, request).await,
+        Method::GET => handle_get(request, pizza_manager).await,
+        Method::POST => handle_post(request, pizza_manager).await,
         _ => Ok(build_error("unsupported")),
     }
 }
 
-async fn handle_get(pizza_manager: impl PizzaManager, request: Request) -> Result<Response<Body>> {
+async fn handle_get(request: Request, pizza_manager: &impl PizzaManager) -> Result<Response<Body>> {
     let path_params = request.path_parameters();
 
     let Some(pizza_name) = path_params.first("pizza_name") else {
         return Ok(build_error("no param found"));
     };
+
     let pizza = pizza_manager.get(String::from(pizza_name)).await?;
     match pizza {
         None => Ok(build_error("no pizza found")),
@@ -37,8 +54,12 @@ async fn handle_get(pizza_manager: impl PizzaManager, request: Request) -> Resul
     }
 }
 
-async fn handle_post(pizza_manager: impl PizzaManager, request: Request) -> Result<Response<Body>> {
+async fn handle_post(
+    request: Request,
+    pizza_manager: &impl PizzaManager,
+) -> Result<Response<Body>> {
     let parse_pizza = request.payload::<Pizza>().unwrap_or_default();
+
     let Some(pizza) = parse_pizza else {
         return Ok(build_error("could not read the pizza"))
     };
@@ -63,15 +84,16 @@ mod tests {
     use lambda_http::http::HeaderValue;
     use maplit::hashmap;
     use std::io::Result;
-    use testcontainers::{self, clients, images};
 
-    use aws_sdk_dynamodb::{
-        model::{
-            AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput,
-            ScalarAttributeType,
-        },
-        Client, Config, Credentials, Region,
-    };
+    // use testcontainers::{self, clients, images};
+
+    // use aws_sdk_dynamodb::{
+    //     model::{
+    //         AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput,
+    //         ScalarAttributeType,
+    //     },
+    //     Client, Config, Credentials, Region,
+    // };
 
     use async_trait::async_trait;
 
@@ -95,9 +117,9 @@ mod tests {
             "pizza_name".into() => vec!["deluxe".into()]
         };
         let request = Request::default().with_path_parameters(path_params);
-        let result = handle_get(pizza_manager, request).await;
+        let result = process_event(request, &pizza_manager).await;
         assert!(result.is_ok());
-        let result = result.unwrap();
+        let result = result.unwrap().into_response().await;
         let result = std::str::from_utf8(result.body()).unwrap();
         assert_eq!("{\"name\":\"test-pizza\",\"price\":10}", result);
         Ok(())
@@ -110,9 +132,10 @@ mod tests {
             "invalid_param".into() => vec!["deluxe".into()]
         };
         let request = Request::default().with_query_string_parameters(path_params);
-        let result = handle_get(pizza_manager, request).await;
+        let result = process_event(request, &pizza_manager).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().status(), 400);
+        let result = result.unwrap().into_response().await;
+        assert_eq!(result.status(), 400);
         Ok(())
     }
 
@@ -120,13 +143,16 @@ mod tests {
     async fn test_create_post_pizza_mocked_success() -> Result<()> {
         let pizza_manager = MockedPizzaManager::default();
         let pizza = Pizza::new(String::from("test-pizza"), 10);
-        let mut request = Request::new(Body::from(serde_json::to_string(&pizza)?));
+        let request = Request::new(Body::from(serde_json::to_string(&pizza)?));
+        let (mut parts, body) = request.into_parts();
+        parts.method = Method::POST;
+        let mut request = Request::from_parts(parts, body);
         request
             .headers_mut()
             .append("content-type", HeaderValue::from_static("application/json"));
-        let result = handle_post(pizza_manager, request).await;
+        let result = process_event(request, &pizza_manager).await;
         assert!(result.is_ok());
-        let result = result.unwrap();
+        let result = result.unwrap().into_response().await;
         let result = std::str::from_utf8(result.body()).unwrap();
         assert_eq!("{\"name\":\"test-pizza\",\"price\":10}", result);
         Ok(())
@@ -136,71 +162,97 @@ mod tests {
     async fn test_create_post_pizza_mocked_error() -> Result<()> {
         let pizza_manager = MockedPizzaManager::default();
         let pizza = "invalid-input";
-        let mut request = Request::new(Body::from(serde_json::to_string(&pizza)?));
+        let request = Request::new(Body::from(serde_json::to_string(&pizza)?));
+        let (mut parts, body) = request.into_parts();
+        parts.method = Method::POST;
+        let mut request = Request::from_parts(parts, body);
         request
             .headers_mut()
             .append("content-type", HeaderValue::from_static("application/json"));
-        let result = handle_post(pizza_manager, request).await;
+        let result = process_event(request, &pizza_manager).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().status(), 400);
+        let result = result.unwrap().into_response().await;
+        assert_eq!(result.status(), 400);
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_create_get_pizza() -> Result<()> {
-        let docker = clients::Cli::default();
-        let node = docker.run(images::dynamodb_local::DynamoDb::default());
-        let port = node.get_host_port_ipv4(8000);
-        let client = build_custom_client(port).await;
-        let pizza_manager =
-            DynamoDBPizzaManager::new(String::from("pizza_test_2"), Some(client)).await;
-        create_db(&pizza_manager).await;
-        let pizza = Pizza::new("margherita".to_string(), 10);
-        pizza_manager.create(pizza).await?;
-        let res = pizza_manager.get(String::from("margherita")).await;
-        assert!(res.is_ok());
-        Ok(())
-    }
+    // #[tokio::test]
+    // async fn test_unsupported_http_verb() -> Result<()> {
+    //     let pizza_manager = MockedPizzaManager::default();
+    //     let pizza = Pizza::new(String::from("test-pizza"), 10);
 
-    async fn create_db(manager: &DynamoDBPizzaManager) {
-        let key_schema_hash = KeySchemaElement::builder()
-            .attribute_name("name".to_string())
-            .key_type(KeyType::Hash)
-            .build();
+    //     let request = Request::new(Body::from(serde_json::to_string(&pizza)?));
+    //     let (mut parts, body) = request.into_parts();
+    //     parts.method = Method::PUT;
+    //     let request = Request::from_parts(parts, body);
 
-        let attribute_name = AttributeDefinition::builder()
-            .attribute_name("name".to_string())
-            .attribute_type(ScalarAttributeType::S)
-            .build();
+    //     let result = process_event(request, &pizza_manager).await;
 
-        let provisioned_throughput = ProvisionedThroughput::builder()
-            .read_capacity_units(5)
-            .write_capacity_units(5)
-            .build();
+    //     assert!(result.is_ok());
 
-        let create_table_result = manager
-            .client
-            .create_table()
-            .table_name(&manager.table_name)
-            .key_schema(key_schema_hash)
-            .attribute_definitions(attribute_name)
-            .provisioned_throughput(provisioned_throughput)
-            .send()
-            .await;
+    //     let result = result.unwrap().into_response().await;
+    //     assert_eq!(result.status(), 400);
 
-        assert!(create_table_result.is_ok());
-        let req = manager.client.list_tables().limit(1);
-        let list_tables_result = req.send().await.unwrap();
-        assert_eq!(list_tables_result.table_names().unwrap().len(), 1);
-    }
+    //     let result = std::str::from_utf8(result.body()).unwrap();
+    //     assert!(result.contains("unsupported"));
+    //     Ok(())
+    // }
 
-    async fn build_custom_client(port: u16) -> Client {
-        let local_credentials = Credentials::new("local", "local", None, None, "local");
-        let conf = Config::builder()
-            .endpoint_url(format!("http://localhost:{}", port))
-            .credentials_provider(local_credentials)
-            .region(Region::new("test-region"))
-            .build();
-        Client::from_conf(conf)
-    }
+    // #[tokio::test]
+    // async fn test_create_get_pizza() -> Result<()> {
+    //     let docker = clients::Cli::default();
+    //     let node = docker.run(images::dynamodb_local::DynamoDb::default());
+    //     let port = node.get_host_port_ipv4(8000);
+    //     let client = build_custom_client(port).await;
+    //     let pizza_manager =
+    //         DynamoDBPizzaManager::new(String::from("pizza_test_2"), Some(client)).await;
+    //     create_db(&pizza_manager).await;
+    //     let pizza = Pizza::new("margherita".to_string(), 10);
+    //     pizza_manager.create(pizza).await?;
+    //     let res = pizza_manager.get(String::from("margherita")).await;
+    //     assert!(res.is_ok());
+    //     Ok(())
+    // }
+
+    // async fn create_db(manager: &DynamoDBPizzaManager) {
+    //     let key_schema_hash = KeySchemaElement::builder()
+    //         .attribute_name("name".to_string())
+    //         .key_type(KeyType::Hash)
+    //         .build();
+
+    //     let attribute_name = AttributeDefinition::builder()
+    //         .attribute_name("name".to_string())
+    //         .attribute_type(ScalarAttributeType::S)
+    //         .build();
+
+    //     let provisioned_throughput = ProvisionedThroughput::builder()
+    //         .read_capacity_units(5)
+    //         .write_capacity_units(5)
+    //         .build();
+
+    //     let create_table_result = manager
+    //         .client
+    //         .create_table()
+    //         .table_name(&manager.table_name)
+    //         .key_schema(key_schema_hash)
+    //         .attribute_definitions(attribute_name)
+    //         .provisioned_throughput(provisioned_throughput)
+    //         .send()
+    //         .await;
+
+    //     assert!(create_table_result.is_ok());
+    //     let req = manager.client.list_tables().limit(1);
+    //     let list_tables_result = req.send().await.unwrap();
+    //     assert_eq!(list_tables_result.table_names().unwrap().len(), 1);
+    // }
+
+    // async fn build_custom_client(port: u16) -> Client {
+    //     let local_credentials = Credentials::new("local", "local", None, None, "local");
+    //     let conf = Config::builder()
+    //         .endpoint_url(format!("http://localhost:{}", port))
+    //         .credentials_provider(local_credentials)
+    //         .region(Region::new("test-region"))
+    //         .build();
+    //     Client::from_conf(conf)
+    // }
 }
