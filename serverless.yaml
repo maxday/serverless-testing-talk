@@ -5,13 +5,6 @@ provider:
   deploymentMethod: direct
   runtime: provided.al2023 # (2)
   region: ${env:AWS_REGION} # (3)
-  iamRoleStatements:
-  - Effect: Allow
-    Action: "dynamodb:PutItem"
-    Resource: "arn:aws:dynamodb:${env:AWS_REGION}:${aws:accountId}:table/pizza-service-demo"
-  - Effect: Allow
-    Action: "dynamodb:Query"
-    Resource: "arn:aws:dynamodb:${env:AWS_REGION}:${aws:accountId}:table/pizza-service-demo"
 
 package: #(4)
   artifact: target/lambda/pizza-service-demo/bootstrap.zip
