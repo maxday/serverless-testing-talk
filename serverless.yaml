@@ -3,7 +3,7 @@ service: pizza-service-demo # (1)
 provider:
   name: aws
   deploymentMethod: direct
-  runtime: provided.al2 # (2)
+  runtime: provided.al2023 # (2)
   region: ${env:AWS_REGION} # (3)
   iamRoleStatements:
   - Effect: Allow
